@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, send_file
+from flask import Flask, render_template, request, send_file, redirect, url_for
 import os
 import pandas as pd
 import time
@@ -42,7 +42,8 @@ def upload(platform):
         if payment_file:
             payment_file.save(os.path.join(platform_folder, "payment.xlsx"))
 
-        return f"{platform.capitalize()} files uploaded successfully ✅"
+        # ✅ FIX: upload ke baad direct dashboard
+        return redirect(url_for("dashboard", platform=platform))
 
     return render_template("upload.html", platform=platform)
 
@@ -110,7 +111,7 @@ def download_order_profit(platform):
         download_name=f"{platform}_order_profit.xlsx"
     )
 
-# ================= DOWNLOAD ORDER MISMATCH (COLOR) =================
+# ================= DOWNLOAD ORDER MISMATCH =================
 @app.route("/download-order-mismatch/<platform>")
 def download_order_mismatch(platform):
     platform = platform.lower()
@@ -155,7 +156,7 @@ def download_order_mismatch(platform):
         download_name=f"{platform}_order_mismatch.xlsx"
     )
 
-# ================= RUN (LOCAL ONLY) =================
+# ================= RUN =================
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
