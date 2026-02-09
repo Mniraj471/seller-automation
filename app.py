@@ -42,22 +42,48 @@ def upload(platform):
         if payment_file:
             payment_file.save(os.path.join(platform_folder, "payment.xlsx"))
 
-        # ✅ FIX: upload ke baad direct dashboard
+        # ✅ Upload ke baad direct dashboard
         return redirect(url_for("dashboard", platform=platform))
 
     return render_template("upload.html", platform=platform)
 
-# ================= DASHBOARD =================
+# ================= DASHBOARD (SAFE VERSION) =================
 @app.route("/dashboard/<platform>")
 def dashboard(platform):
     platform = platform.lower()
 
+    payment_path = os.path.join(UPLOAD_FOLDER, platform, "payment.xlsx")
+
+    # ❌ payment file missing
+    if not os.path.exists(payment_path):
+        return render_template(
+            "dashboard.html",
+            platform=platform,
+            data=None,
+            error="Payment file not found. Please upload files again."
+        )
+
+    try:
+        payment_df = read_excel_safely(payment_path)
+    except Exception as e:
+        return render_template(
+            "dashboard.html",
+            platform=platform,
+            data=None,
+            error=str(e)
+        )
+
+    # ❌ empty or invalid file
+    if payment_df is None or payment_df.empty:
+        return render_template(
+            "dashboard.html",
+            platform=platform,
+            data=None,
+            error="Payment file is empty or invalid."
+        )
+
     from_date = request.args.get("from")
     to_date = request.args.get("to")
-
-    payment_df = read_excel_safely(
-        os.path.join(UPLOAD_FOLDER, platform, "payment.xlsx")
-    )
 
     if "Date" in payment_df.columns:
         payment_df = payment_df.copy()
@@ -80,6 +106,7 @@ def dashboard(platform):
         "dashboard.html",
         platform=platform,
         data=data,
+        error=None,
         from_date=from_date,
         to_date=to_date
     )
