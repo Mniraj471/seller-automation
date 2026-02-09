@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Upload Files</title>
+    <style>
+        body {
+            font-family: Arial;
+            background: #f4f6f8;
+            padding: 40px;
+        }
+        .box {
+            background: white;
+            padding: 30px;
+            max-width: 500px;
+            margin: auto;
+            border-radius: 8px;
+        }
+        h2 {
+            text-align: center;
+        }
+        input {
+            width: 100%;
+            margin: 15px 0;
+            padding: 10px;
+        }
+        button {
+            width: 100%;
+            padding: 12px;
+            background: #007bff;
+            color: white;
+            border: none;
+            font-size: 16px;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+    </style>
+</head>
+<body>
+
+<div class="box">
+    <h2>{{ platform|capitalize }} Upload</h2>
+
+    <form method="POST" enctype="multipart/form-data">
+        <label>Order Excel File</label>
+        <input type="file" name="order_file" required>
+
+        <label>Payment / Settlement Excel File</label>
+        <input type="file" name="payment_file" required>
+
+        <button type="submit">Upload Files</button>
+    </form>
+</div>
+
+</body>
+</html>
