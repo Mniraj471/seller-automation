@@ -2,12 +2,10 @@ from flask import Flask, render_template, request, send_file
 import os
 import pandas as pd
 import time
-
 from openpyxl.styles import Font
 
 # 🔹 LOGIC IMPORTS
-from logic.excel_reader import read_excel_safely, detect_order_id_column
-from logic.order_matcher import match_orders
+from logic.excel_reader import read_excel_safely
 from logic.calculations import calculate_settlement
 from logic.order_profit import generate_order_profit
 from logic.order_mismatch import generate_order_mismatch
@@ -18,8 +16,10 @@ app = Flask(__name__)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 UPLOAD_FOLDER = os.path.join(BASE_DIR, "uploads")
 
+# ✅ VERY IMPORTANT (Render crash fix)
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
 print("🔥 APP FILE LOADED FROM:", __file__)
-print("🔥 REGISTERED ROUTES:", app.url_map)
 
 # ================= HOME =================
 @app.route("/")
@@ -54,7 +54,9 @@ def dashboard(platform):
     from_date = request.args.get("from")
     to_date = request.args.get("to")
 
-    payment_df = read_excel_safely(f"uploads/{platform}/payment.xlsx")
+    payment_df = read_excel_safely(
+        os.path.join(UPLOAD_FOLDER, platform, "payment.xlsx")
+    )
 
     if "Date" in payment_df.columns:
         payment_df = payment_df.copy()
@@ -86,8 +88,12 @@ def dashboard(platform):
 def download_order_profit(platform):
     platform = platform.lower()
 
-    order_df = read_excel_safely(f"uploads/{platform}/order.xlsx")
-    payment_df = read_excel_safely(f"uploads/{platform}/payment.xlsx")
+    order_df = read_excel_safely(
+        os.path.join(UPLOAD_FOLDER, platform, "order.xlsx")
+    )
+    payment_df = read_excel_safely(
+        os.path.join(UPLOAD_FOLDER, platform, "payment.xlsx")
+    )
 
     profit_df = generate_order_profit(order_df, payment_df)
 
@@ -104,13 +110,17 @@ def download_order_profit(platform):
         download_name=f"{platform}_order_profit.xlsx"
     )
 
-# ================= DOWNLOAD ORDER MISMATCH (COLOR FIXED) =================
+# ================= DOWNLOAD ORDER MISMATCH (COLOR) =================
 @app.route("/download-order-mismatch/<platform>")
 def download_order_mismatch(platform):
     platform = platform.lower()
 
-    order_df = read_excel_safely(f"uploads/{platform}/order.xlsx")
-    payment_df = read_excel_safely(f"uploads/{platform}/payment.xlsx")
+    order_df = read_excel_safely(
+        os.path.join(UPLOAD_FOLDER, platform, "order.xlsx")
+    )
+    payment_df = read_excel_safely(
+        os.path.join(UPLOAD_FOLDER, platform, "payment.xlsx")
+    )
 
     mismatch_df = generate_order_mismatch(order_df, payment_df)
 
@@ -119,7 +129,6 @@ def download_order_mismatch(platform):
         UPLOAD_FOLDER, platform, f"order_mismatch_{ts}.xlsx"
     )
 
-    # ✅ openpyxl (NO xlsxwriter)
     with pd.ExcelWriter(output_path, engine="openpyxl") as writer:
         mismatch_df.to_excel(writer, index=False, sheet_name="Mismatch")
         ws = writer.book["Mismatch"]
@@ -146,6 +155,6 @@ def download_order_mismatch(platform):
         download_name=f"{platform}_order_mismatch.xlsx"
     )
 
-# ================= RUN =================
+# ================= RUN (LOCAL ONLY) =================
 if __name__ == "__main__":
     app.run(debug=True)
