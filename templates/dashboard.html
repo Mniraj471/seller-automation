@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ platform|upper }} – Seller Settlement Dashboard</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f5f6fa;
+            margin: 0;
+            padding: 20px;
+        }
+        h1 {
+            margin-bottom: 10px;
+        }
+        .filter {
+            background: #ffffff;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+        }
+        .filter input {
+            padding: 6px;
+            margin-right: 10px;
+        }
+        .filter button {
+            padding: 6px 12px;
+            background: #2ecc71;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .card {
+            background: #fff;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+        }
+        .net {
+            background: #e8fff0;
+            border-left: 6px solid #2ecc71;
+        }
+        .income {
+            background: #f0fff8;
+            border-left: 6px solid #27ae60;
+        }
+        .expense {
+            background: #fff0f0;
+            border-left: 6px solid #e74c3c;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        th, td {
+            padding: 10px;
+            border-bottom: 1px solid #ddd;
+            text-align: left;
+        }
+        th {
+            background: #fafafa;
+        }
+        .amount {
+            font-weight: bold;
+        }
+        .green { color: #27ae60; }
+        .red { color: #e74c3c; }
+    </style>
+</head>
+<body>
+
+<h1>{{ platform|upper }} – Seller Settlement Dashboard</h1>
+
+<!-- DATE FILTER -->
+<form method="get" class="filter">
+    From:
+    <input type="date" name="from" value="{{ from_date }}">
+    To:
+    <input type="date" name="to" value="{{ to_date }}">
+    <button type="submit">Apply Filter</button>
+</form>
+
+<!-- ✅ DOWNLOAD EXCEL BUTTON (ADDED HERE) -->
+<div class="card" style="text-align:center;">
+    <h2>📥 Download Report</h2>
+    <a href="/download-order-profit/{{ platform }}">
+        <button style="
+            background:#2ecc71;
+            color:white;
+            padding:12px 24px;
+            border:none;
+            border-radius:6px;
+            font-size:16px;
+            cursor:pointer;
+        ">
+            ⬇️ Download Order-wise Profit Excel
+        </button>
+    </a>
+    <p style="margin-top:8px;color:#555;">
+        Includes Order ID, SKU, Product Name, ASIN, Income, Expense & Profit
+    </p>
+</div>
+
+<!-- NET SETTLEMENT -->
+<div class="card net">
+    <h2>💰 Net Settlement (Bank Credit)</h2>
+    <h1>₹ {{ data.net_settlement }}</h1>
+    <small>Exact amount credited by Amazon to your bank</small>
+</div>
+
+<!-- INCOME -->
+<div class="card income">
+    <h2>🟢 Income Breakdown</h2>
+    <table>
+        <tr>
+            <th>Type</th>
+            <th>Amount (₹)</th>
+        </tr>
+        {% for k, v in data.income.items() %}
+        <tr>
+            <td>{{ k.replace("_", " ").title() }}</td>
+            <td class="amount green">₹ {{ v }}</td>
+        </tr>
+        {% endfor %}
+        <tr>
+            <th>Total Income</th>
+            <th class="green">₹ {{ data.total_income }}</th>
+        </tr>
+    </table>
+</div>
+
+<!-- EXPENSE -->
+<div class="card expense">
+    <h2>🔴 Expense Breakdown (Amazon Deductions)</h2>
+    <table>
+        <tr>
+            <th>Type</th>
+            <th>Amount (₹)</th>
+        </tr>
+        {% for k, v in data.expenses.items() %}
+        <tr>
+            <td>{{ k.replace("_", " ").title() }}</td>
+            <td class="amount red">₹ {{ v }}</td>
+        </tr>
+        {% endfor %}
+        <tr>
+            <th>Total Expense</th>
+            <th class="red">₹ {{ data.total_expense }}</th>
+        </tr>
+    </table>
+</div>
+
+</body>
+</html>
