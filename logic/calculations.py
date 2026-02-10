@@ -1,46 +1,75 @@
 import pandas as pd
 
 
-# ================= DATE FILTER HELPER =================
-def filter_by_date(df, from_date=None, to_date=None):
-    if "Posted Date" not in df.columns:
+# ================= PLATFORM COLUMN MAP =================
+PLATFORM_MAP = {
+    "amazon": {
+        "amount": "Total (INR)",
+        "desc": "Transaction type",
+        "date": "Posted Date"
+    },
+    "flipkart": {
+        "amount": "Amount",
+        "desc": "Type",
+        "date": "Order Date"
+    },
+    "meesho": {
+        "amount": "Net Amount",
+        "desc": "Transaction Type",
+        "date": "Settlement Date"
+    },
+    "snapdeal": {
+        "amount": "Amount",
+        "desc": "Description",
+        "date": "Date"
+    }
+}
+
+
+# ================= DATE FILTER =================
+def filter_by_date(df, date_col, from_date=None, to_date=None):
+    if date_col not in df.columns:
         return df
 
     df = df.copy()
-    df["Posted Date"] = pd.to_datetime(df["Posted Date"], errors="coerce")
+    df[date_col] = pd.to_datetime(df[date_col], errors="coerce")
 
     if from_date:
-        df = df[df["Posted Date"] >= pd.to_datetime(from_date)]
+        df = df[df[date_col] >= pd.to_datetime(from_date)]
 
     if to_date:
-        df = df[df["Posted Date"] <= pd.to_datetime(to_date)]
+        df = df[df[date_col] <= pd.to_datetime(to_date)]
 
     return df
 
 
 # ================= MAIN SETTLEMENT LOGIC =================
-def calculate_settlement(
-    df,
-    amount_col="Total (INR)",
-    desc_col="Transaction type",
-    from_date=None,
-    to_date=None
-):
-    # ---------- SAFETY ----------
+def calculate_settlement(df, platform, from_date=None, to_date=None):
+    platform = platform.lower()
+
+    if platform not in PLATFORM_MAP:
+        raise Exception(f"Unsupported platform: {platform}")
+
+    cfg = PLATFORM_MAP[platform]
+    amount_col = cfg["amount"]
+    desc_col = cfg["desc"]
+    date_col = cfg["date"]
+
     df = df.copy()
 
-    # 🔹 DATE FILTER APPLY (STEP 5.1)
-    df = filter_by_date(df, from_date, to_date)
+    # 🔹 DATE FILTER
+    df = filter_by_date(df, date_col, from_date, to_date)
 
+    # 🔹 CLEAN AMOUNT
     df[amount_col] = pd.to_numeric(df[amount_col], errors="coerce").fillna(0)
 
-    df["desc"] = (
-        df[desc_col].astype(str).str.lower()
-        + " "
-        + df.get("Product Details", "").astype(str).str.lower()
-    )
+    # 🔹 DESCRIPTION MERGE (SAFE)
+    df["desc"] = df[desc_col].astype(str).str.lower()
 
-    # ---------- EXPENSE BUCKETS ----------
+    if "Product Details" in df.columns:
+        df["desc"] += " " + df["Product Details"].astype(str).str.lower()
+
+    # ================= BUCKETS =================
     expenses = {
         "advertising": 0.0,
         "commission": 0.0,
@@ -51,29 +80,24 @@ def calculate_settlement(
         "other_expense": 0.0,
     }
 
-    # ---------- INCOME BUCKETS ----------
     income = {
         "order_payment": 0.0,
         "reimbursement": 0.0,
     }
 
-    # ---------- CLASSIFICATION ----------
+    # ================= CLASSIFICATION =================
     for _, row in df.iterrows():
         amt = row[amount_col]
         desc = row["desc"]
 
-        # 🟢 INCOME (Bank credit)
+        # 🟢 INCOME
         if amt > 0:
-            if "order payment" in desc:
-                income["order_payment"] += amt
-            elif "reimbursement" in desc or "lost" in desc or "damaged" in desc:
-                income["reimbursement"] += amt
-            elif "weight handling fees reversal" in desc:
+            if any(x in desc for x in ["reimbursement", "lost", "damaged", "reversal"]):
                 income["reimbursement"] += amt
             else:
                 income["order_payment"] += amt
 
-        # 🔴 EXPENSE (Amazon deductions)
+        # 🔴 EXPENSE
         else:
             val = abs(amt)
 
@@ -81,18 +105,18 @@ def calculate_settlement(
                 expenses["refund"] += val
             elif "commission" in desc:
                 expenses["commission"] += val
-            elif "easy ship" in desc or "shipping" in desc:
+            elif any(x in desc for x in ["shipping", "easy ship", "delivery"]):
                 expenses["shipping"] += val
-            elif "cost of advertising" in desc:
+            elif "advertising" in desc or "ads" in desc:
                 expenses["advertising"] += val
             elif "subscription" in desc:
                 expenses["subscription"] += val
-            elif "service fees" in desc:
+            elif "service" in desc or "fee" in desc:
                 expenses["service_fee"] += val
             else:
                 expenses["other_expense"] += val
 
-    # ---------- CLEANING ----------
+    # ================= CLEAN OUTPUT =================
     def clean_dict(d):
         return {k: round(v, 2) for k, v in d.items() if round(v, 2) != 0}
 
@@ -102,8 +126,7 @@ def calculate_settlement(
     total_income = round(sum(income.values()), 2)
     total_expense = round(sum(expenses.values()), 2)
 
-    # ✅ Amazon already gives NET amount
-    net_settlement = total_income
+    net_settlement = round(total_income - total_expense, 2)
 
     return {
         "income": income,
