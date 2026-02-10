@@ -12,11 +12,11 @@ from logic.order_mismatch import generate_order_mismatch
 
 app = Flask(__name__)
 
-# 🔹 BASE PATHS
+# ================= PATHS =================
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 UPLOAD_FOLDER = os.path.join(BASE_DIR, "uploads")
 
-# ✅ VERY IMPORTANT (Render crash fix)
+# ✅ Render crash fix
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 print("🔥 APP FILE LOADED FROM:", __file__)
@@ -42,25 +42,24 @@ def upload(platform):
         if payment_file:
             payment_file.save(os.path.join(platform_folder, "payment.xlsx"))
 
-        # ✅ Upload ke baad direct dashboard
+        # ✅ upload ke baad dashboard
         return redirect(url_for("dashboard", platform=platform))
 
     return render_template("upload.html", platform=platform)
 
-# ================= DASHBOARD (SAFE VERSION) =================
+# ================= DASHBOARD =================
 @app.route("/dashboard/<platform>")
 def dashboard(platform):
     platform = platform.lower()
 
     payment_path = os.path.join(UPLOAD_FOLDER, platform, "payment.xlsx")
 
-    # ❌ payment file missing
     if not os.path.exists(payment_path):
         return render_template(
             "dashboard.html",
             platform=platform,
             data=None,
-            error="Payment file not found. Please upload files again."
+            error="Payment file not found. Please upload again."
         )
 
     try:
@@ -73,7 +72,6 @@ def dashboard(platform):
             error=str(e)
         )
 
-    # ❌ empty or invalid file
     if payment_df is None or payment_df.empty:
         return render_template(
             "dashboard.html",
@@ -85,21 +83,12 @@ def dashboard(platform):
     from_date = request.args.get("from")
     to_date = request.args.get("to")
 
-    if "Date" in payment_df.columns:
-        payment_df = payment_df.copy()
-        payment_df["Date"] = pd.to_datetime(
-            payment_df["Date"], errors="coerce", dayfirst=True
-        )
-
-        if from_date:
-            payment_df = payment_df[payment_df["Date"] >= pd.to_datetime(from_date)]
-        if to_date:
-            payment_df = payment_df[payment_df["Date"] <= pd.to_datetime(to_date)]
-
+    # ✅ IMPORTANT CHANGE (MULTI PLATFORM)
     data = calculate_settlement(
         payment_df,
-        amount_col="Total (INR)",
-        desc_col="Transaction type"
+        platform,
+        from_date,
+        to_date
     )
 
     return render_template(
