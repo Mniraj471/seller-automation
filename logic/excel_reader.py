@@ -1,48 +1,69 @@
 import pandas as pd
 
-# ================= UNIVERSAL MULTI SHEET READER =================
+# ================= SAFE EXCEL READER =================
 def read_excel_safely(file_path, mode="payment"):
     """
-    mode = payment | order
+    Reads ALL sheets from Excel and merges them safely.
+    Ignores empty / formula-only / note sheets.
     """
-    xls = pd.ExcelFile(file_path, engine="openpyxl")
+
+    try:
+        xls = pd.ExcelFile(file_path, engine="openpyxl")
+    except Exception as e:
+        raise Exception(f"Excel read error: {e}")
+
+    all_dfs = []
 
     for sheet in xls.sheet_names:
         try:
             df = pd.read_excel(xls, sheet_name=sheet)
-
-            if df.empty:
-                continue
-
-            cols = [c.lower() for c in df.columns.astype(str)]
-
-            # ---------- PAYMENT SHEET DETECTION ----------
-            if mode == "payment":
-                payment_signatures = [
-                    "total (inr)",                  # Amazon
-                    "final settlement amount",      # Meesho
-                    "bank settlement value",        # Flipkart
-                    "invoice amount",               # Snapdeal
-                ]
-
-                if any(sig in c for sig in payment_signatures for c in cols):
-                    print(f"✅ PAYMENT SHEET DETECTED → {sheet}")
-                    return df
-
-            # ---------- ORDER SHEET DETECTION ----------
-            if mode == "order":
-                order_signatures = [
-                    "order id",
-                    "sub order",
-                    "order_item_id",
-                    "suborder id",
-                ]
-
-                if any(sig in c for sig in order_signatures for c in cols):
-                    print(f"✅ ORDER SHEET DETECTED → {sheet}")
-                    return df
-
         except Exception:
             continue
 
-    raise Exception("❌ No valid sheet found in Excel file")
+        if df is None or df.empty:
+            continue
+
+        # Drop fully empty rows/cols
+        df = df.dropna(how="all").dropna(axis=1, how="all")
+
+        if len(df.columns) < 3:
+            continue
+
+        all_dfs.append(df)
+
+    if not all_dfs:
+        return pd.DataFrame()
+
+    return pd.concat(all_dfs, ignore_index=True)
+
+
+# ================= ORDER ID DETECTOR =================
+def detect_order_id_column(df):
+    """
+    Detects Order ID / Sub Order ID column automatically
+    for Amazon / Flipkart / Meesho / Snapdeal
+    """
+
+    possible_columns = [
+        "order id",
+        "amazon-order-id",
+        "order_item_id",
+        "order_item_id",
+        "sub order no",
+        "suborder id",
+        "sub order id",
+        "order_item_id",
+        "order id",
+        "suborder id",
+        "order_item_id",
+        "order_item_id",
+        "order_item_id",
+    ]
+
+    for col in df.columns:
+        col_lower = col.lower().strip()
+        for key in possible_columns:
+            if key in col_lower:
+                return col
+
+    raise Exception("❌ Order ID column not found in order sheet")
