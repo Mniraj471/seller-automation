@@ -16,7 +16,7 @@ app = Flask(__name__)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 UPLOAD_FOLDER = os.path.join(BASE_DIR, "uploads")
 
-# ✅ Render crash fix
+# ✅ Render / server crash fix
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 print("🔥 APP FILE LOADED FROM:", __file__)
@@ -37,10 +37,11 @@ def upload(platform):
         order_file = request.files.get("order_file")
         payment_file = request.files.get("payment_file")
 
-        if order_file:
-            order_file.save(os.path.join(platform_folder, "order.xlsx"))
-        if payment_file:
-            payment_file.save(os.path.join(platform_folder, "payment.xlsx"))
+        if not order_file or not payment_file:
+            return "❌ Order & Payment files both required"
+
+        order_file.save(os.path.join(platform_folder, "order.xlsx"))
+        payment_file.save(os.path.join(platform_folder, "payment.xlsx"))
 
         # ✅ upload ke baad dashboard
         return redirect(url_for("dashboard", platform=platform))
@@ -51,15 +52,15 @@ def upload(platform):
 @app.route("/dashboard/<platform>")
 def dashboard(platform):
     platform = platform.lower()
-
     payment_path = os.path.join(UPLOAD_FOLDER, platform, "payment.xlsx")
 
+    # ❌ payment file missing
     if not os.path.exists(payment_path):
         return render_template(
             "dashboard.html",
             platform=platform,
             data=None,
-            error="Payment file not found. Please upload again."
+            error="❌ Payment file not found. Please upload again."
         )
 
     try:
@@ -72,23 +73,24 @@ def dashboard(platform):
             error=str(e)
         )
 
+    # ❌ empty sheet
     if payment_df is None or payment_df.empty:
         return render_template(
             "dashboard.html",
             platform=platform,
             data=None,
-            error="Payment file is empty or invalid."
+            error="❌ Payment file is empty or invalid."
         )
 
     from_date = request.args.get("from")
     to_date = request.args.get("to")
 
-    # ✅ IMPORTANT CHANGE (MULTI PLATFORM)
+    # ✅ MULTI-PLATFORM SETTLEMENT LOGIC
     data = calculate_settlement(
         payment_df,
-        platform,
-        from_date,
-        to_date
+        platform=platform,
+        from_date=from_date,
+        to_date=to_date
     )
 
     return render_template(
