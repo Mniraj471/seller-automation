@@ -1,26 +1,37 @@
 import pandas as pd
 
-def read_excel_safely(file_path):
+# ================= SAFE EXCEL READER =================
+def read_excel_safely(file_path, sheet_name=None):
     try:
-        xl = pd.ExcelFile(file_path)
-        sheet_name = xl.sheet_names[0]
-        df = xl.parse(sheet_name)
-        df.columns = df.columns.str.strip()
-        return df
+        # Agar sheet_name diya ho
+        if sheet_name:
+            return pd.read_excel(file_path, sheet_name=sheet_name, engine="openpyxl")
+
+        # Auto-detect correct sheet
+        xls = pd.ExcelFile(file_path, engine="openpyxl")
+
+        for sheet in xls.sheet_names:
+            df = pd.read_excel(xls, sheet_name=sheet)
+
+            # Skip empty sheets
+            if df.empty:
+                continue
+
+            # Meesho / Amazon / Flipkart common columns
+            important_cols = [
+                "Final Settlement",
+                "Total (INR)",
+                "Transaction type",
+                "Order ID",
+                "Sub Order No"
+            ]
+
+            for col in important_cols:
+                if col in df.columns:
+                    print(f"✅ Using sheet: {sheet}")
+                    return df
+
+        raise Exception("No valid payment sheet found")
+
     except Exception as e:
         raise Exception(f"Excel read error: {e}")
-
-def detect_order_id_column(df):
-    possible_names = [
-        "order id", "order-id", "order_id",
-        "sub order no", "suborder", "order number",
-        "order_no", "sub_order_no"
-    ]
-
-    for col in df.columns:
-        col_clean = col.lower().replace(" ", "").replace("-", "_")
-        for key in possible_names:
-            if key.replace(" ", "").replace("-", "_") in col_clean:
-                return col
-
-    raise Exception("❌ Order ID column not found")
