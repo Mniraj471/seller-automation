@@ -16,7 +16,7 @@ app = Flask(__name__)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 UPLOAD_FOLDER = os.path.join(BASE_DIR, "uploads")
 
-# ✅ Render / server crash fix
+# ✅ Render / Server crash fix
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 print("🔥 APP FILE LOADED FROM:", __file__)
@@ -43,7 +43,7 @@ def upload(platform):
         order_file.save(os.path.join(platform_folder, "order.xlsx"))
         payment_file.save(os.path.join(platform_folder, "payment.xlsx"))
 
-        # ✅ upload ke baad dashboard
+        # ✅ Upload ke baad direct dashboard
         return redirect(url_for("dashboard", platform=platform))
 
     return render_template("upload.html", platform=platform)
@@ -64,7 +64,8 @@ def dashboard(platform):
         )
 
     try:
-        payment_df = read_excel_safely(payment_path)
+        # ✅ MULTI-SHEET SAFE PAYMENT READ
+        payment_df = read_excel_safely(payment_path, mode="payment")
     except Exception as e:
         return render_template(
             "dashboard.html",
@@ -73,7 +74,6 @@ def dashboard(platform):
             error=str(e)
         )
 
-    # ❌ empty sheet
     if payment_df is None or payment_df.empty:
         return render_template(
             "dashboard.html",
@@ -85,7 +85,7 @@ def dashboard(platform):
     from_date = request.args.get("from")
     to_date = request.args.get("to")
 
-    # ✅ MULTI-PLATFORM SETTLEMENT LOGIC
+    # ✅ MULTI-PLATFORM SETTLEMENT (Amazon / Flipkart / Meesho / Snapdeal)
     data = calculate_settlement(
         payment_df,
         platform=platform,
@@ -107,12 +107,12 @@ def dashboard(platform):
 def download_order_profit(platform):
     platform = platform.lower()
 
-    order_df = read_excel_safely(
-        os.path.join(UPLOAD_FOLDER, platform, "order.xlsx")
-    )
-    payment_df = read_excel_safely(
-        os.path.join(UPLOAD_FOLDER, platform, "payment.xlsx")
-    )
+    order_path = os.path.join(UPLOAD_FOLDER, platform, "order.xlsx")
+    payment_path = os.path.join(UPLOAD_FOLDER, platform, "payment.xlsx")
+
+    # ✅ MULTI-SHEET SAFE READ
+    order_df = read_excel_safely(order_path, mode="order")
+    payment_df = read_excel_safely(payment_path, mode="payment")
 
     profit_df = generate_order_profit(order_df, payment_df)
 
@@ -134,12 +134,12 @@ def download_order_profit(platform):
 def download_order_mismatch(platform):
     platform = platform.lower()
 
-    order_df = read_excel_safely(
-        os.path.join(UPLOAD_FOLDER, platform, "order.xlsx")
-    )
-    payment_df = read_excel_safely(
-        os.path.join(UPLOAD_FOLDER, platform, "payment.xlsx")
-    )
+    order_path = os.path.join(UPLOAD_FOLDER, platform, "order.xlsx")
+    payment_path = os.path.join(UPLOAD_FOLDER, platform, "payment.xlsx")
+
+    # ✅ MULTI-SHEET SAFE READ
+    order_df = read_excel_safely(order_path, mode="order")
+    payment_df = read_excel_safely(payment_path, mode="payment")
 
     mismatch_df = generate_order_mismatch(order_df, payment_df)
 
@@ -148,6 +148,7 @@ def download_order_mismatch(platform):
         UPLOAD_FOLDER, platform, f"order_mismatch_{ts}.xlsx"
     )
 
+    # ✅ COLOR FORMATTING
     with pd.ExcelWriter(output_path, engine="openpyxl") as writer:
         mismatch_df.to_excel(writer, index=False, sheet_name="Mismatch")
         ws = writer.book["Mismatch"]
