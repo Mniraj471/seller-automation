@@ -1,37 +1,48 @@
 import pandas as pd
 
-# ================= SAFE EXCEL READER =================
-def read_excel_safely(file_path, sheet_name=None):
-    try:
-        # Agar sheet_name diya ho
-        if sheet_name:
-            return pd.read_excel(file_path, sheet_name=sheet_name, engine="openpyxl")
+# ================= UNIVERSAL MULTI SHEET READER =================
+def read_excel_safely(file_path, mode="payment"):
+    """
+    mode = payment | order
+    """
+    xls = pd.ExcelFile(file_path, engine="openpyxl")
 
-        # Auto-detect correct sheet
-        xls = pd.ExcelFile(file_path, engine="openpyxl")
-
-        for sheet in xls.sheet_names:
+    for sheet in xls.sheet_names:
+        try:
             df = pd.read_excel(xls, sheet_name=sheet)
 
-            # Skip empty sheets
             if df.empty:
                 continue
 
-            # Meesho / Amazon / Flipkart common columns
-            important_cols = [
-                "Final Settlement",
-                "Total (INR)",
-                "Transaction type",
-                "Order ID",
-                "Sub Order No"
-            ]
+            cols = [c.lower() for c in df.columns.astype(str)]
 
-            for col in important_cols:
-                if col in df.columns:
-                    print(f"✅ Using sheet: {sheet}")
+            # ---------- PAYMENT SHEET DETECTION ----------
+            if mode == "payment":
+                payment_signatures = [
+                    "total (inr)",                  # Amazon
+                    "final settlement amount",      # Meesho
+                    "bank settlement value",        # Flipkart
+                    "invoice amount",               # Snapdeal
+                ]
+
+                if any(sig in c for sig in payment_signatures for c in cols):
+                    print(f"✅ PAYMENT SHEET DETECTED → {sheet}")
                     return df
 
-        raise Exception("No valid payment sheet found")
+            # ---------- ORDER SHEET DETECTION ----------
+            if mode == "order":
+                order_signatures = [
+                    "order id",
+                    "sub order",
+                    "order_item_id",
+                    "suborder id",
+                ]
 
-    except Exception as e:
-        raise Exception(f"Excel read error: {e}")
+                if any(sig in c for sig in order_signatures for c in cols):
+                    print(f"✅ ORDER SHEET DETECTED → {sheet}")
+                    return df
+
+        except Exception:
+            continue
+
+    raise Exception("❌ No valid sheet found in Excel file")
